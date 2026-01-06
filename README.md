@@ -1,98 +1,141 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Overview
+This task was implemented using NestJS, GraphQL (Code-First Approach),TypeORM and sqlite in memory database. 
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+## Approach & Architecture
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+### Code-First GraphQL
+Data models were defined using TypeScript classes and decorators, from which the GraphQL schema is automatically generated.
+Entities and DTOs are decorated with `@ObjectType()`, `@InputType()`, and `@Field()`.
 
-## Description
+### Database Layer (TypeORM)
+TypeORM is used for database interactions.
+- **Task**: Represents the `task` table.
+- sqlite in memory database was used for simplicity.
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+### Validation & Sanitization
+Data integrity and security are enforced using `class-validator` and `class-transformer`.
+- **Global Pipes**: The application is configured with `ValidationPipe({ transform: true })`, enabling automatic transformation and validation of incoming payloads.
+- **DTOs**: `CreateTaskInput` enforces rules like `@IsString`, `@IsNotEmpty`, and uses `@Transform` to trim whitespace from inputs.
 
-## Project setup
+## Component Details
 
-```bash
-$ npm install
+### 1. Task Module (`TaskModule`)
+Encapsulates `TaskService`, `TaskResolver`, and registers `Task` with TypeORM.
+
+### 2. Task Entity (`Task`)
+Defines the data structure:
+- `id`: UUID (Auto-generated)
+- `title`: String (Max 200 chars)
+- `description`: Text (Optional)
+- `status`: Enum (`TODO`, `IN_PROGRESS`, `DONE`)
+- `priority`: Enum (`LOW`, `MEDIUM`, `HIGH`)
+- `storeId`: UUID
+- `timestamps`: `createdAt`, `updatedAt`
+
+### 3. Task Service (`TaskService`)
+- `createTask`: Handles task creation. Assumptions: The `storeId` wiil be passed from the frontend, and the `createdById` will be retrieved within the service (Current implementation uses a random string that will always be unique).
+- `updateTask`: Updates task status.
+- `getTasks`: Retrieves tasks with filtering (by `storeId`, `status`) and sorting (by `createdAt` DESC).
+
+### 4. Task Resolver (`TaskResolver`)
+Exposes the functionality via GraphQL API:
+- **Queries**: `getTasks`
+- **Mutations**: `createTask`, `updateTask`
+
+## Key Decisions
+- **Enums**: `TaskStatus` and `TaskPriority` are explicitly registered in GraphQL to ensure strict typing across the API.
+- **Separation of Concerns**: DTOs are separated from Entities to strictly control input data and avoid over-posting.
+- **Sorting**: Enforced default sorting by `createdAt` DESC to show the newest tasks first.
+
+### Testing
+- Run `npm run start:dev` to run the app in watch mode, then navigate to `http://localhost:3000/graphql`
+- Run `npm run test` to run the tests.
+
+## Sample Requests and Response
+### Create Task 
+Req
+```graphql
+mutation {
+  createTask(createTaskInput: {
+    title: "Work on Assesment", 
+    description: "Build backend app using GraphQL",
+    priority:MEDIUM,
+    storeId: "uljskdhfjksdhkh23"
+  }) {
+    id
+    title
+    description
+    priority
+    status
+    storeId
+    createdById
+    createdAt
+    updatedAt
+  }
+}
+```
+Res
+```graphql
+{
+  "data": {
+    "createTask": {
+      "id": "30b1eaa8-6cb5-442d-842d-1251eff9fb78",
+      "title": "Work on Assesment",
+      "description": "Build backend app using GraphQL",
+      "priority": "MEDIUM",
+      "status": "TODO",
+      "storeId": "uljskdhfjksdhkh23",
+      "createdById": "random_merchant_id:1767704605248",
+      "createdAt": "2026-01-06T13:03:25.000Z",
+      "updatedAt": "2026-01-06T13:03:25.000Z"
+    }
+  }
+}
 ```
 
-## Compile and run the project
-
-```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+### Update Task
+Req
+```graphql
+mutation {
+  updateTask(id: "30b1eaa8-6cb5-442d-842d-1251eff9fb78", status: DONE){
+    id
+    title
+    status
+  }
+}
 ```
-
-## Run tests
-
-```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+Res
 ```
-
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+{
+  "data": {
+    "updateTask": {
+      "id": "30b1eaa8-6cb5-442d-842d-1251eff9fb78",
+      "title": "Work on Assesment",
+      "status": "DONE"
+    }
+  }
+}
 ```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+### Get tasks
+Query
+```
+{
+  getTasks(storeId:"uljskdhfjksdhkh23", status:DONE) {
+    title
+    status
+  }
+}
+```
+Res
+```
+{
+  "data": {
+    "getTasks": [
+      {
+        "title": "Work on Assesment",
+        "status": "DONE"
+      }
+    ]
+  }
+}
+```
